@@ -1,0 +1,244 @@
+---
+title: "Untitled"
+author: "RN7"
+date: "February 10, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Bullet charts and Project Progress Reports
+
+ACDI/VOCA is...
+~
+~
+~
+For the Monitoring and Evaluation Team we have...
+~
+~
+~
+
+## The Linearity and Non-linearity of Project Completion over Time
+
+When managing a number of projects, it is important to have an effective way to monitor your KPIs. Generally when you think of progress of a project you think of it as a linear relationship between time and project completion, for example:
+
+```{r example_1, echo=FALSE}
+library(dplyr)
+library(ggplot2)
+
+
+data <- tribble(
+  ~month, ~num,
+  "January", 56,
+  "February", 59,
+  "March", 64,
+  "April", 67,
+  "May", 69,
+  "June", 74,
+  "July", 78,
+  "August", 83
+)
+glimpse(data)
+
+data %>%
+  mutate(month = factor(month, levels = c("January", "February", "March", "April", "May", 
+                                          "June", "July", "August"))) %>% 
+  group_by(month) %>% 
+  ggplot(aes(month, num, group = 1)) +
+  geom_point() +
+  geom_line()
+
+
+
+```
+
+As in most projects, a nice and steady progression over time. However, in agricultural projects this relationship is mainly non-linear... So we might see cases such as this:
+
+```{r example_2, echo = FALSE}
+
+data2 <- tribble(
+  ~month, ~num,
+  "January", 0,
+  "February", 0,
+  "March", 25,
+  "April", 25,
+  "May", 25,
+  "June", 25,
+  "July", 80,
+  "August", 100
+)
+glimpse(data2)
+
+data2 %>%
+  mutate(month = factor(month, levels = c("January", "February", "March", "April", "May", 
+                                          "June", "July", "August"))) %>% 
+  group_by(month) %>% 
+  ggplot(aes(month, num, group = 1)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Months", y = "Progress (%)") +
+  theme_minimal()
+
+
+```
+
+Clearly there are sudden "spurts" of activity for this project/indicator... for the other months/time units it can be very hard to track how this project is actually doing. Are these months of inactivity normal? Should I be worried? 
+
+Project timelines for introducing/implementing agricultural technologies and techniques are non-linear due to reasons such as ...
+
+1. Seeding
+2. Waiting time until products can be picked/harvested
+3. Weather
+4. ???
+5. ???
+
+With traditional graphs, it will look like a lot of the indicators and projects are not progressing on schedule when in fact they are just on stand-by until actual work can be done. Therefore, an alternative way of visualizing progress over time is needed to help project managers and stakeholders monitor projects and make informed decisions.
+
+## Bullet graphs
+
+A great way to visually represent these types of KPIs is by **bullet graphs**. This type of graph is a variation on a typical graph with a thick line presenting an important point for that indicator (benchmark, performance target, etc.) and other bars in the background that can signifiy different levels of performance (low-high, bad-good, etc.). This type of graph makes it very easy to compare between related measures (e.g. present status versus status at similar time in the past) such as necessary in our case. 
+
+Here we look at : 
+
+```{r data}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+## Inputs
+forYear = 2018 ## Specify Year the analysis represents
+FY = TRUE       ## Is this a fiscal year? (as opposed to calendar year)
+ProjectStartDate <- "2016/03/01"
+
+df <- structure(list(IndicatorName = c("Ind 04", "Ind 05", "Ind 07", 
+                                       "Ind 11", "Ind 17", "Ind 18"), 
+                     Actual = c(3, 437, 20, 44, 1,10000), 
+                     Actual_lastWeek = c(3, 420, 18, 20, 1, 10000), 
+                     Actual_lastYear = c(3, 50, 20, 2000, 1, 10000), 
+                     Target = c(14, 81, 21, 10327, 5, 20000)), 
+                row.names = c(NA, -6L), class = "data.frame", 
+                .Names = c("IndicatorName", "Actual", "Actual_lastWeek", "Actual_lastYear", "Target"))
+
+## If df is empty, break function and just output an empty chart
+if (nrow(df) == 0){
+  OutputPlot <- "No data yet"
+  return()
+}
+
+## Protect against the case where there are no actuals:
+if (is.null(length(df$Active))) df$Actual <- 0
+
+## Take percents, but protecting against there being no targets
+df$Perc <-     df$Actual/(df$Target + 0.0000000000001) * 100
+df$PercWeek <- df$Actual_lastWeek/(df$Target + 0.0000000000001) * 100
+df$PercYear <- df$Actual_lastYear/(df$Target + 0.0000000000001) * 100
+
+## But truncate results if any are greater than 100
+df$Perc[df$Perc > 100] <- 100
+df$PercWeek[df$PercWeek > 100] <- 100
+df$PercYear[df$PercYear > 100] <- 100
+
+#### Figure out today, within the Fiscal Year 
+## If desired, force the project ot respect the startdate
+if (FY == TRUE){
+  ## Control for the possibility that project starts in a month other than October
+  if(month(ProjectStartDate) != 10) {ProjectStartDate <-  as.Date(paste("01 10", year(ProjectStartDate)), format = "%d %m %Y")}
+  ## Grab Percent of year
+  PercentTime<- 
+    as.numeric((Sys.Date() - as.Date(paste(format(as.Date(ProjectStartDate), "%d %b"),
+                                           forYear - 1), format = "%d %b %Y"))/365.25*100)
+} else {
+  ## Grab Percent of year
+  PercentTime<- 
+    as.numeric(Sys.Date() - as.Date(ProjectStartDate))/365.25*100
+}
+
+## Truncate Percent line if greater than 100 (for example, doing the analysis after year end)
+if(PercentTime > 100) PercentTime <- 100
+
+## Calculate how far behind TODAY the Indicator Percent is
+df$BehindBy <- df$Perc - PercentTime
+
+## Calculate how far behind TODAY (VALUE) for text, but remove NAs
+df <- df %>%
+  mutate(text = PercentTime/100 * df$Target - df$Actual)
+df$text[df$BehindBy > 0] <-"OK!"
+df$text[df$BehindBy <= 0 & !is.na(df$BehindBy)] <- 
+  paste("Need ", round(as.numeric(df$text[df$BehindBy <= 0  & !is.na(df$BehindBy)])), " more", sep = "")
+
+
+  
+          ## Calculate behind from last week
+          df$BehindFromLastWeek <- df$Actual - df$Actual_lastWeek
+          
+          ## Calculate how far behind LAST for text
+          df$text2[df$BehindFromLastWeek > 0 & !is.na(df$BehindFromLastWeek)] <- paste("(+", round(as.numeric(df$BehindFromLastWeek[df$BehindFromLastWeek > 0 & !is.na(df$BehindFromLastWeek)])), " from last week)", sep = "")
+          df$text2[df$BehindFromLastWeek < 0 & !is.na(df$BehindFromLastWeek)] <- paste("(",round(as.numeric(df$BehindFromLastWeek[df$BehindFromLastWeek < 0 & !is.na(df$BehindFromLastWeek)])), " from last week)", sep = "")
+          
+          ## Truncate BEHIND BY at 0, LowLevel, and Percent to 100
+          #### Set "low level" here. Low level is the Value that we consider tolerable to be behind the indicators by.r
+          LowLVL <- -.20 * PercentTime
+          df$BehindBy[df$BehindBy > 0] <- 0
+          df$BehindBy[df$BehindBy < LowLVL] <- LowLVL
+
+
+```
+
+
+
+```{r plot}
+
+ggplot(df, aes(IndicatorName)) + 
+  geom_col(aes(y = Perc, width = 0.1, fill = BehindBy), color = "black") + 
+  scale_fill_gradient("Indicator\nBehind By:", limits = c(LowLVL, 0), low = "red", high = "green",
+                      labels = c("On Time", "Slightly Behind", "Behind Schedule", ""),
+                      breaks = c(0, -2, -4, -6)) +
+  geom_point(aes(y = PercWeek, shape = "Last Week"), size = 6, stroke = 2) +
+  geom_point(aes(y = PercYear, shape = "Last Year"), size = 6, stroke = 2.5) +         
+  scale_shape_manual(" ", values = c(23, 21)) +
+  geom_text(y = 1, aes(label = text2), vjust = 2, hjust = 0) +
+  geom_col(aes(y = 100, width = 0.5), alpha = 0.25) +
+  geom_text(y = 1, aes(label = text), vjust = -1.5, hjust = 0) +
+  geom_hline(yintercept = PercentTime, alpha = 0.33) +
+  annotate("text", x = 0, y = PercentTime + 1.5, hjust = 0, label = "Today", angle = 90, alpha = 0.5, size = 5) +
+  coord_flip() +  
+  labs(y = "Percent of Yearly Target\n&\n Percent of Year",
+       x = " ") +
+  ggtitle(paste("Ongoing Indicator Accomplishment (", forYear, ")", sep = "")) +
+  theme_minimal() + 
+  theme(axis.text.y = element_text(size = 15, face = "bold"),
+        axis.title.x = element_text(face = "bold", size = 15),
+        axis.text.x = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 20),
+        plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5, size = 8),
+        legend.text = element_text(size = 16), 
+        legend.key.size = unit(2, "lines"),
+        legend.key = element_rect(size = 1, color = "white"))
+
+
+```
+
+A slight variation on our plot is that instead of the multiple bars, we instead have small markers (circle and diamond) to pinpoint the benchmarks set during the last week and last year. 
+
+As you can see, the bars show the progression along the horizontal-axis signalling the percentage of the yearly target completed. Also, along this axis is the percent of the year gone by with a vertical line indicated the what exact percentage "today" is along this percentage. It is necessary to use percentages as we have multiple indicators of varying units/parameters for each project! 
+
+Compared to other bulletgraphs, we have decided to have the central progress bar be differentiated in terms of schedule via its color, rather than showing that through multiple bars. Instead, the other bars are used to signify the percentage of yearly target achieved at last week and last year of the project instead. We feel that this allows our viewers/stakeholders to take one quick look at the bar plot and recognize the progress rather than comparing it against the other bars. 
+
+Another version is this:
+
+```{r}
+
+```
+
+where we conform more closely to the standard bulletchart design. The main difference however, is to use different thickness for the benchmarks for previous time points to further accentuate the 
+
+An ideal indicator would therefore look like a three-level pyramid shape, with "last year" being the bottom level, the "last week" being a medium level, and "current" being the top level or with the "last year" overlapping with the "current" bar. Both charts would be green to clearly show that this indicator is on time. 
+
+---
+introduce the alternative plots???
+---
+
+

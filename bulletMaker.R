@@ -317,3 +317,39 @@ data %>%
 
 
 
+
+
+
+
+
+ggplot(df, aes(IndicatorName)) + 
+  geom_col(aes(y = Perc, width = 0.1, fill = BehindBy), color = "black") + 
+  scale_fill_gradient("Indicator\nBehind By:", limits = c(LowLVL, 0), low = "red", high = "green",
+                      labels = c("On Time", "Slightly Behind", "Behind Schedule", ""),
+                      breaks = c(0, -2, -4, -6)) +
+  geom_point(aes(y = PercWeek, shape = "Last Week"), size = 6, stroke = 2) +
+  geom_point(aes(y = PercYear, shape = "Last Year"), size = 6, stroke = 2.5) +         
+  scale_shape_manual(" ", values = c(23, 21)) +
+  geom_col(aes(y = 100, width = 0.5), alpha = 0.25) +
+  geom_text(y = 1, aes(label = text), vjust = -1.5, hjust = 0) +
+  geom_hline(yintercept = PercentTime, alpha = 0.33) +
+  annotate("text", x = 0, y = PercentTime + 1.5, hjust = 0, label = "Today", angle = 90, alpha = 0.5, size = 5) +
+  geom_text(aes(y = PercWeek, label = "Last Week"), size = 4, nudge_x = -0.25) +
+  geom_text(aes(y = PercYear, label = "Last Year"), size = 4, nudge_x = -0.45) +
+  coord_flip() +  
+  labs(y = "Percent of Yearly Target\n&\n Percent of Year",
+       x = " ") +
+  ggtitle(paste("Ongoing Indicator Accomplishment (", forYear, ")", sep = "")) +
+  theme_minimal() + 
+  theme(axis.text.y = element_text(size = 15, face = "bold"),
+        axis.title.x = element_text(face = "bold", size = 15),
+        axis.text.x = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5, size = 8),
+        legend.position = "none")
+
+
+
+
+

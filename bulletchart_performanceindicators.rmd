@@ -1,7 +1,5 @@
 ---
-title: "Untitled"
-author: "RN7"
-date: "February 10, 2018"
+title: "Introducing the M&E Bullet chart"
 output: html_document
 ---
 
@@ -9,103 +7,78 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Bullet charts and Project Progress Reports
+This post is for the __Monitoring and Evaluation (M&E)__ people out there (or MEL,MERL, or whatever else the cool kids are calling themselves these days). For the purposes of this report, we will focus on M&E deliverables, which are called **"Indicators"**, but this post will also come in handy for anyone that depends on Key Performance Indicators (KPI)s or those that need to track progress against a target. **TL;WR** version, we recommend a hacked version of the bullet-chart... and provide the R-code to accomplish the same on our [github page](https://github.com/ACDIVOCATech/AV.BulletChart). This post was co-written by our Data Analytics and Viz Intern, [Ryo Nakagawara](https:://www.ryo-n7.github.io/aboutme).
 
-ACDI/VOCA is...
-~
-~
-~
-For the Monitoring and Evaluation Team we have...
-~
-~
-~
 
-## The Linearity and Non-linearity of Project Completion over Time
+For those of you completely unfamiliar, at __ACDI/VOCA__ we have projects that we implement around the world, and in order to ensure that we are implementing them correctly, we have indicators that have yearly targets, and we must continuously track progress against these yearly indicators in order to ensure we are implementing the project correctly and having an impact. 
 
-When managing a number of projects, it is important to have an effective way to monitor your KPIs. Generally when you think of progress of a project you think of it as a linear relationship between time and project completion, for example:
 
-```{r example_1, echo=FALSE}
-library(dplyr)
-library(ggplot2)
+Now, the __first problem__ one might have is they don't have real-time data to monitor. If you don't have a real-time data system, then go back and work on that and come back in a year or two :). Since ACDI/VOCA does have a near real-time data management system, we can proceed.
 
+
+The __second problem__ is that not all indicators "receive data" throughout the year... there is a very detailed schedule that governs what gets collected when, but long story short, a good amount of data comes in at the end of the year. M&E folk have several classifications for indicators, but since we are data people, we divide this up into two groups: **Routine** (or Ongoing) **Indicators**, and **Yearly Indicators**. By throwing away the yearly indicators, we are left with an indicator set that we can expect should be updated frequently... and thus we can use these to figure out if we're falling behind. Not to say that the yearly data isn't important, that's __THE MOST__ important... but it measures impact (more or less), not implementation and can't be used for quick corrections.
+
+
+The __third problem__ is that measuring progress against a end-of-year target would mean that for the majority of the year, the % accomplishment will be low-ish (because the year isn't over yet and we're still doing stuff!). A naive trick that can be employed is to expect that indicator accomplishment be _more or less linear_. If we assume this, then we if we divide the indicator accomplishment by the % of year elapsed, we can expect all indicators to be at 100% of where we should be (For example, when we are 25% through the `year` (whether it be calendar year or fiscal year) we can assume we should be 25% through the target... 25/25 = 100%). Clear as mud?
+
+
+Now, this is a _problematic_ assumption, especially in agricultural development projects, where activities are absolutely **not** linear, and by design. For example, some indicators might require distribution of money or inputs, something that should be done early in the year, and some activities might happen later in the year, perhaps right before seeding, harvest, or sales. These curves might look like this:
+
+
+```{r , echo=FALSE}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
 
 data <- tribble(
-  ~month, ~num,
-  "January", 56,
-  "February", 59,
-  "March", 64,
-  "April", 67,
-  "May", 69,
-  "June", 74,
-  "July", 78,
-  "August", 83
+  ~month, ~linear, ~scaled, ~distribution,
+  "January", 0, 0, 0,
+  "February", 8.3, 0, 0,
+  "March", 16.6, 25, 0,
+  "April", 24.9, 25, 0, 
+  "May", 33.2, 25, 90,
+  "June", 41.5, 25, 90,
+  "July", 58.1, 25, 100,
+  "August", 66.4, 25, 100,
+  "September", 74.7, 25, 100,
+  "October", 83, 25, 100,
+  "November", 91.3, 100, 100,
+  "December", 100, 100, 100
 )
-glimpse(data)
 
-data %>%
+data %>% 
+  tidyr::gather(key = type, value = progress, linear:distribution) %>% 
   mutate(month = factor(month, levels = c("January", "February", "March", "April", "May", 
-                                          "June", "July", "August"))) %>% 
+                                          "June", "July", "August", "September",
+                                          "October", "November", "December"))) %>% 
   group_by(month) %>% 
-  ggplot(aes(month, num, group = 1)) +
-  geom_point() +
-  geom_line()
-
-
-
-```
-
-As in most projects, a nice and steady progression over time. However, in agricultural projects this relationship is mainly non-linear... So we might see cases such as this:
-
-```{r example_2, echo = FALSE}
-
-data2 <- tribble(
-  ~month, ~num,
-  "January", 0,
-  "February", 0,
-  "March", 25,
-  "April", 25,
-  "May", 25,
-  "June", 25,
-  "July", 80,
-  "August", 100
-)
-glimpse(data2)
-
-data2 %>%
-  mutate(month = factor(month, levels = c("January", "February", "March", "April", "May", 
-                                          "June", "July", "August"))) %>% 
-  group_by(month) %>% 
-  ggplot(aes(month, num, group = 1)) +
-  geom_point() +
-  geom_line() +
+  ggplot(aes(x = month, y = progress, group = type, color = type)) +
+  geom_line(size = 2) +
+  scale_color_brewer(palette = "Dark2") +
   labs(x = "Months", y = "Progress (%)") +
-  theme_minimal()
-
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 30)) +
+  annotate("label", x = "April", y = 75, label = "Distribution of supplies or funds") +
+  annotate("label", x = "June", y = 50, label = "Expected") +
+  annotate("label", x = "September", y = 20, label = "Scaled training or\n events tied to crop cycle")
 
 ```
 
-Clearly there are sudden "spurts" of activity for this project/indicator... for the other months/time units it can be very hard to track how this project is actually doing. Are these months of inactivity normal? Should I be worried? 
+One way to deal with this is to assign projections and track each indicator against the projection... but this approach is not without its problems. We will revisit these non-linearities later, but for the moment, let's ignore them and assume that indicator progression is linear. So what is the best way to track these indicators? Let's introduce the bullet chart!
 
-Project timelines for introducing/implementing agricultural technologies and techniques are non-linear due to reasons such as ...
+## Bullet chart
 
-1. Seeding
-2. Waiting time until products can be picked/harvested
-3. Weather
-4. ???
-5. ???
+The __bullet chart__ was invented by [Stephen Few](https://www.perceptualedge.com/articles/misc/Bullet_Graph_Design_Spec.pdf), for the purpose of showing tons of info in a condensed form in KPIs.
 
-With traditional graphs, it will look like a lot of the indicators and projects are not progressing on schedule when in fact they are just on stand-by until actual work can be done. Therefore, an alternative way of visualizing progress over time is needed to help project managers and stakeholders monitor projects and make informed decisions.
-
-## Bullet graphs
-
-A great way to visually represent these types of KPIs is by **bullet graphs**. This type of graph is a variation on a typical graph with a thick line presenting an important point for that indicator (benchmark, performance target, etc.) and other bars in the background that can signifiy different levels of performance (low-high, bad-good, etc.). This type of graph makes it very easy to compare between related measures (e.g. present status versus status at similar time in the past) such as necessary in our case. 
+This type of graph is a variation on a typical bar graph with a thick line presenting an important point for that indicator (benchmark, performance target, etc.) and other bars in the background that can signify different levels of performance (low-high, bad-good, etc.). This type of graph makes it very easy to compare between related measures (e.g. present status versus status at similar time in the past) such as necessary in our case. 
 
 Here we look at : 
 
-```{r data}
-library(ggplot2)
-library(dplyr)
-library(lubridate)
+```{r data, echo=FALSE, warning=F}
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggrepel))
 
 ## Inputs
 forYear = 2018 ## Specify Year the analysis represents
@@ -168,14 +141,8 @@ df$text[df$BehindBy > 0] <-"OK!"
 df$text[df$BehindBy <= 0 & !is.na(df$BehindBy)] <- 
   paste("Need ", round(as.numeric(df$text[df$BehindBy <= 0  & !is.na(df$BehindBy)])), " more", sep = "")
 
-
-  
           ## Calculate behind from last week
           df$BehindFromLastWeek <- df$Actual - df$Actual_lastWeek
-          
-          ## Calculate how far behind LAST for text
-          df$text2[df$BehindFromLastWeek > 0 & !is.na(df$BehindFromLastWeek)] <- paste("(+", round(as.numeric(df$BehindFromLastWeek[df$BehindFromLastWeek > 0 & !is.na(df$BehindFromLastWeek)])), " from last week)", sep = "")
-          df$text2[df$BehindFromLastWeek < 0 & !is.na(df$BehindFromLastWeek)] <- paste("(",round(as.numeric(df$BehindFromLastWeek[df$BehindFromLastWeek < 0 & !is.na(df$BehindFromLastWeek)])), " from last week)", sep = "")
           
           ## Truncate BEHIND BY at 0, LowLevel, and Percent to 100
           #### Set "low level" here. Low level is the Value that we consider tolerable to be behind the indicators by.r
@@ -188,57 +155,98 @@ df$text[df$BehindBy <= 0 & !is.na(df$BehindBy)] <-
 
 
 
-```{r plot}
+```{r plot , echo=FALSE}
 
 ggplot(df, aes(IndicatorName)) + 
   geom_col(aes(y = Perc, width = 0.1, fill = BehindBy), color = "black") + 
   scale_fill_gradient("Indicator\nBehind By:", limits = c(LowLVL, 0), low = "red", high = "green",
                       labels = c("On Time", "Slightly Behind", "Behind Schedule", ""),
-                      breaks = c(0, -2, -4, -6)) +
-  geom_point(aes(y = PercWeek, shape = "Last Week"), size = 6, stroke = 2) +
-  geom_point(aes(y = PercYear, shape = "Last Year"), size = 6, stroke = 2.5) +         
+                      guide = FALSE) +
+  geom_point(aes(y = PercWeek, shape = "Last Week"), size = 6, stroke = 1) +
+  geom_point(aes(y = PercYear, shape = "Last Year"), size = 6, stroke = 1) +         
   scale_shape_manual(" ", values = c(23, 21)) +
-  geom_text(y = 1, aes(label = text2), vjust = 2, hjust = 0) +
   geom_col(aes(y = 100, width = 0.5), alpha = 0.25) +
-  geom_text(y = 1, aes(label = text), vjust = -1.5, hjust = 0) +
+  geom_text(y = 1, aes(label = text), vjust = -1, hjust = 0) +
   geom_hline(yintercept = PercentTime, alpha = 0.33) +
-  annotate("text", x = 0, y = PercentTime + 1.5, hjust = 0, label = "Today", angle = 90, alpha = 0.5, size = 5) +
+  annotate("text", x = 0, y = PercentTime + 1.5, hjust = 0, label = "Today", 
+           angle = 90, alpha = 0.5, size = 5) +
   coord_flip() +  
   labs(y = "Percent of Yearly Target\n&\n Percent of Year",
        x = " ") +
   ggtitle(paste("Ongoing Indicator Accomplishment (", forYear, ")", sep = "")) +
   theme_minimal() + 
   theme(axis.text.y = element_text(size = 15, face = "bold"),
-        axis.title.x = element_text(face = "bold", size = 15),
-        axis.text.x = element_text(face = "bold", size = 12),
-        title = element_text(face = "bold", size = 20),
+        axis.title.x = element_text(face = "bold", size = 10),
+        axis.text.x = element_text(face = "bold", size = 14),
+        title = element_text(face = "bold", size = 14),
         plot.title = element_text(hjust = 0.5), 
         plot.subtitle = element_text(hjust = 0.5, size = 8),
-        legend.text = element_text(size = 16), 
-        legend.key.size = unit(2, "lines"),
-        legend.key = element_rect(size = 1, color = "white"))
-
-
-```
-
-A slight variation on our plot is that instead of the multiple bars, we instead have small markers (circle and diamond) to pinpoint the benchmarks set during the last week and last year. 
-
-As you can see, the bars show the progression along the horizontal-axis signalling the percentage of the yearly target completed. Also, along this axis is the percent of the year gone by with a vertical line indicated the what exact percentage "today" is along this percentage. It is necessary to use percentages as we have multiple indicators of varying units/parameters for each project! 
-
-Compared to other bulletgraphs, we have decided to have the central progress bar be differentiated in terms of schedule via its color, rather than showing that through multiple bars. Instead, the other bars are used to signify the percentage of yearly target achieved at last week and last year of the project instead. We feel that this allows our viewers/stakeholders to take one quick look at the bar plot and recognize the progress rather than comparing it against the other bars. 
-
-Another version is this:
-
-```{r}
+        legend.position = c(0.8, -0.12),
+        legend.key.size = unit(1.5, "lines")) +
+  expand_limits(x = 6.75, y = 102)
 
 ```
 
-where we conform more closely to the standard bulletchart design. The main difference however, is to use different thickness for the benchmarks for previous time points to further accentuate the 
+OK, there's tons going on here, so let's explain! As you can see, the bars show the progression along the horizontal-axis presenting the percentage of the yearly target completed. Also, along this axis is the percent of the year gone by with a vertical line indicating what exact percentage __"Today"__ is along this percentage. It is necessary to use percentages as we have multiple indicators of varying units/parameters for each project! 
 
-An ideal indicator would therefore look like a three-level pyramid shape, with "last year" being the bottom level, the "last week" being a medium level, and "current" being the top level or with the "last year" overlapping with the "current" bar. Both charts would be green to clearly show that this indicator is on time. 
+Each bar is colored green if it's close to or past __"Today"__, orange if it's close, and red if it's not. Instead of showing a vertical tick mark on each bar, we show a constant __"Today"__ line that progresses from 0-100% of the year. However, if individual targets based on projections are desired, one could easily show these as individual lines instead of today line, see below.
 
----
-introduce the alternative plots???
----
+```{r individual_line, echo=FALSE}
+
+ggplot(df, aes(IndicatorName)) + 
+  geom_col(aes(y = Perc, width = 0.15, fill = BehindBy), color = "black") + 
+  scale_fill_gradient("Indicator\nBehind By:", limits = c(LowLVL, 0), low = "red", high = "green") +
+  geom_point(aes(y = PercWeek, shape = "Last Week"), size = 4.5, stroke = 3) +
+  scale_shape_manual(" ", values = 124) +
+  geom_col(aes(y = 100, width = 0.5), alpha = 0.25) +
+  geom_text(y = 1, aes(label = text), vjust = -1.5, hjust = 0) +
+  coord_flip() +  
+  labs(y = "Percent of Yearly Target\n&\n Percent of Year",
+       x = " ") +
+  ggtitle(paste("Ongoing Indicator Accomplishment (", forYear, ")", sep = "")) +
+  theme_minimal() + 
+  theme(axis.text.y = element_text(size = 15, face = "bold"),
+        axis.title.x = element_text(face = "bold", size = 10),
+        axis.text.x = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold"),
+        plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5, size = 8),
+        legend.position = "none")
+
+```
+
+
+Returning to the original graph, there are two symbols displayed in addition to the bars, a circle and a diamond. The diamond shows where we were last week (or two weeks... some configurable short-term indicator, and the circle shows where we were last year, today. These benchmarks serve to show whether there is ongoing progress for the diamond, and the progress compared to last year is important in that it compares year-to-year performance. We have found that this is enough to provide an indication to managers about whether an indicator is behind or ahead, even if we are "behind" compared to __"Today"__.
+
+The above mentioned symbols are being used instead of the additional bars in a traditional bullet graph, because we thought it was clearer to understand, but here is a version that uses differently sized bars to compare last-week and last-year instead. 
+
+```{r multiple_bars, echo=FALSE}
+
+ggplot(df, aes(IndicatorName)) + 
+  geom_col(aes(y = PercWeek, width = 0.5), alpha = 0.6) +
+  geom_col(aes(y = PercYear, width = 0.75), alpha = 0.3) +
+  geom_col(aes(y = Perc, width = 0.15, fill = BehindBy), color = "black") + 
+  scale_fill_gradient("Indicator\nBehind By:", limits = c(LowLVL, 0), low = "red", high = "green") +
+  geom_text(y = 1, aes(label = text), vjust = -1.5, hjust = 0, size = 4) +
+  geom_hline(yintercept = PercentTime, alpha = 0.33) +
+  annotate("text", x = 0, y = PercentTime + 1.5, hjust = 0, label = "Today", angle = 90, alpha = 0.5, size = 5) +
+  coord_flip() +
+  labs(y = "Percent of Yearly Target\n&\n Percent of Year",
+       x = " ") +
+  ggtitle(paste("Ongoing Indicator Accomplishment (", forYear, ")", sep = "")) +
+  theme_minimal() + 
+  theme(axis.text.y = element_text(size = 15, face = "bold"),
+        axis.title.x = element_text(face = "bold", size = 10),
+        axis.text.x = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold"),
+        plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5, size = 8),
+        legend.position = "none")
+
+```
+
+In this one, we conform more closely to the standard bullet chart design. The main difference however, is to use different thickness as the benchmarks for previous time points to further accentuate the difference graphically.
+
+We have heard great things about this bullet chart from the field in that it allows our viewers/stakeholders to take one quick look to see what needs work. We hope that this is useful to you also! In case you would like to [download a version, or collaborate](https://github.com/ACDIVOCATech/AV.BulletChart), we invite __Pull Requests__!
 
 
